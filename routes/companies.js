@@ -3,18 +3,18 @@ const express = require("express");
 const db = require("../db");
 const router = new express.Router();
 const { NotFoundError, BadRequestError } = require("../expressError");
-// const { NotFoundError, BadRequestError } = require("../expressError");
 
-console.log('NotFoundError=', NotFoundError);
-/** GET /companies: get list of companies
+/** GET /companies - get list of companies
  *
  *  like {companies: [{code, name}, ...]}
 */
+
 router.get("/", async function (req, res, next) {
 
   const cResults = await db.query(
     `SELECT code, name
-        FROM companies`);
+        FROM companies
+        ORDER BY code`);
 
   const companies = cResults.rows;
 
@@ -22,24 +22,20 @@ router.get("/", async function (req, res, next) {
 });
 
 
-/** GET /companies/:code: get a company
+/** GET /companies/:code - get a company
  *
  *  Return obj of company: {company: {code, name, description}}
 */
+
 router.get("/:code", async function (req, res, next) {
 
-  if (!req.body) throw new BadRequestError();
   const code = req.params.code;
-  console.log(`code: ${code}`);
   const cResult = await db.query(
     `SELECT code, name, description
         FROM companies
         WHERE code=$1`, [code]);
 
-  console.log(`cResult: ${cResult}`);
-
   const company = cResult.rows[0];
-  console.log(`company: ${cResult.rows[0]}`);
 
   if (!company) {
     throw new NotFoundError();
@@ -49,7 +45,7 @@ router.get("/:code", async function (req, res, next) {
 });
 
 
-/** POST /companies/: adds a company
+/** POST /companies - adds a company
  *
  *  Needs to be given JSON like: {code, name, description}
  *
@@ -68,22 +64,63 @@ router.post("/", async function (req, res, next) {
         RETURNING code, name, description`,
     [code, name, description]);
 
-  console.log(`cResult: ${cResult}`);
-
   const company = cResult.rows[0];
-  console.log(`company: ${cResult.rows[0]}`);
-
 
   return res.status(201).json({ company });
 });
 
 
+/** PUT /companies/:code - edits existing company
+ *
+ *  Needs to be given JSON like: {name, description}
+ *
+ *  Returns updated company object: {company: {code, name, description}}
+ *  or throws 404 error if not found
+*/
 
+router.put("/:code", async function (req, res, next) {
 
-/** DELETE /companies/[id]: delete user, return {message: Deleted} */
-router.delete("/:id", function (req, res) {
-  db.User.delete(req.params.id);
-  return res.json({ message: "Deleted" });
+  if (!req.body) throw new BadRequestError();
+
+  const { name, description } = req.body;
+
+  const cResult = await db.query(
+    `UPDATE companies
+        SET name=$1,
+            description=$2
+        WHERE code=$3
+        RETURNING code, name, description`,
+    [name, description, req.params.code]);
+
+  const company = cResult.rows[0];
+
+  if (!company) {
+    throw new NotFoundError();
+  }
+
+  return res.status(200).json({ company });
 });
+
+
+/** DELETE /companies/:code - deletes company,
+ *  return {status: "deleted"}
+ *  or throws 404 if company not found */
+
+router.delete("/:code", async function (req, res, next) {
+  const code = req.params.code;
+
+  const result = await db.query(
+    `DELETE from companies WHERE code = $1
+        RETURNING code, name, description`,
+    [code],
+  );
+
+  if (!result.rows[0]) {
+    throw new NotFoundError();
+  }
+
+  return res.json({ status: "deleted" });
+});
+
 
 module.exports = router;
