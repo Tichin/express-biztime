@@ -1,6 +1,6 @@
 const express = require("express");
 
-const db = require("./db");
+const db = require("../db");
 const router = new express.Router();
 const { NotFoundError, BadRequestError } = require("../expressError");
 
@@ -29,16 +29,18 @@ router.get("/:code", async function (req, res, next) {
 
   if (!req.body) throw new BadRequestError();
   const code = req.params.code;
-
+  console.log(`code: ${code}`);
   const cResult = await db.query(
     `SELECT code, name, description
         FROM companies
         WHERE code=$1`, [code]);
 
+  console.log(`cResult: ${cResult}`);
   const company = cResult.rows[0];
+  console.log(`company: ${cResult.rows[0]}`);
 
-  if (cResult.rows.length === 0) {
-    throw new NotFoundError();
+  if (company === undefined) {
+    throw new NotFoundError("Company not found");
   }
 
   return res.json({ company });
