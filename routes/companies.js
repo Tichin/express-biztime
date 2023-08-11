@@ -24,7 +24,16 @@ router.get("/", async function (req, res, next) {
 
 /** GET /companies/:code - get a company
  *
- *  Return obj of company: {company: {code, name, description}}
+ *  Return obj of company: {company: {code, name, description,
+ *  invoices: [{
+        "id": 2,
+        "comp_code": "apple",
+        "amt": "200.00",
+        "paid": false,
+        "add_date": "2023-08-10T07:00:00.000Z",
+        "paid_date": null
+      },{id,...}]
+    }
 */
 
 router.get("/:code", async function (req, res, next) {
@@ -40,6 +49,17 @@ router.get("/:code", async function (req, res, next) {
   if (!company) {
     throw new NotFoundError();
   }
+
+  const iResult = await db.query(
+    `SELECT  id, comp_code, amt, paid, add_date, paid_date
+        FROM invoices
+        WHERE comp_code = $1`, [code]
+  );
+
+  const invoices = iResult.rows;
+  console.log('invoice=', invoices);
+
+  company.invoices = invoices; // just id using map
 
   return res.json({ company });
 });
@@ -109,13 +129,15 @@ router.put("/:code", async function (req, res, next) {
 router.delete("/:code", async function (req, res, next) {
   const code = req.params.code;
 
-  const result = await db.query(
+
+  const cResult = await db.query(
     `DELETE from companies WHERE code = $1
         RETURNING code, name, description`,
     [code],
   );
 
-  if (!result.rows[0]) {
+  const company = cResult.rows[0];
+  if (!company) {
     throw new NotFoundError();
   }
 

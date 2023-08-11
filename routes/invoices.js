@@ -13,19 +13,22 @@ const { NotFoundError, BadRequestError } = require("../expressError");
 //   paid_date DATE
 // );
 
-/** GET /invoices - get list of invoices for given company
+/** GET /invoices - get list of invoices for given company //All the invoices
  *
  *  like {invoices: [{id, comp_code}, ...]}
 */
 
 router.get("/", async function (req, res, next) {
-
+  console.log('got in /invoices');
   const iResults = await db.query(
     `SELECT id, comp_code
         FROM invoices
-        ORDER BY comp_code`);
+        ORDER BY id`);
 
+  console.log('iResults=', iResults);
   const invoices = iResults.rows;
+  console.log('invoices=', invoices);
+
 
   return res.json({ invoices });
 });
@@ -49,22 +52,26 @@ router.get("/:id", async function (req, res, next) {
     `SELECT id, amt, comp_code, paid, add_date, paid_date
         FROM invoices
         WHERE id=$1`, [id]);
+  // no comp_code here
   const invoice = iResult.rows[0];
-  console.log(invoice.comp_code);
+
+  if (!invoice) {
+    throw new NotFoundError(`Invoice not found `); // put id as well
+  }
 
   const cResult = await db.query(
     `SELECT code, name, description
         FROM companies
         WHERE code=$1`, [invoice.comp_code]);
-  console.log(cResult);
 
   const company = cResult.rows[0];
 
-  if (!company) {
-    throw new NotFoundError();
-  }
+  // if (!company) {
+  //   throw new NotFoundError(`Company not found`);
+  // }
 
   invoice.company = company;
+
   return res.json({ invoice });
 });
 
@@ -96,57 +103,58 @@ router.post("/", async function (req, res, next) {
 });
 
 
-// /** PUT /companies/:code - edits existing company
-//  *
-//  *  Needs to be given JSON like: {name, description}
-//  *
-//  *  Returns updated company object: {company: {code, name, description}}
-//  *  or throws 404 error if not found
-// */
+/** PUT /invoices/:id - updates existing invoice
+ *
+ *  Needs to be given JSON like: { amt }
+ *
+ *  Returns updated invoice object:
+ *       {invoice: {id, comp_code, amt, paid, add_date, paid_date}}
+ *  or throws 404 error if not found
+*/
 
-// router.put("/:code", async function (req, res, next) {
+router.put("/:id", async function (req, res, next) {
 
-//   if (!req.body) throw new BadRequestError();
+  if (!req.body) throw new BadRequestError();
 
-//   const { name, description } = req.body;
+  const { amt } = req.body;
 
-//   const cResult = await db.query(
-//     `UPDATE companies
-//         SET name=$1,
-//             description=$2
-//         WHERE code=$3
-//         RETURNING code, name, description`,
-//     [name, description, req.params.code]);
+  const iResult = await db.query(
+    `UPDATE invoices
+        SET amt=$1
+        WHERE id=$2
+        RETURNING id, comp_code, amt, paid, add_date, paid_date`,
+    [amt, req.params.id]);
 
-//   const company = cResult.rows[0];
+  const invoice = iResult.rows[0];
 
-//   if (!company) {
-//     throw new NotFoundError();
-//   }
+  if (!invoice) {
+    throw new NotFoundError();
+  }
 
-//   return res.status(200).json({ company });
-// });
+  return res.status(200).json({ invoice });
+});
 
 
-// /** DELETE /companies/:code - deletes company,
-//  *  return {status: "deleted"}
-//  *  or throws 404 if company not found */
+/** DELETE /invoices/:id - deletes an invoice,
+ *  return {status: "deleted"}
+ *  or throws 404 if invoice not found */
 
-// router.delete("/:code", async function (req, res, next) {
-//   const code = req.params.code;
+router.delete("/:id", async function (req, res, next) {
+  const id = req.params.id;
 
-//   const result = await db.query(
-//     `DELETE from companies WHERE code = $1
-//         RETURNING code, name, description`,
-//     [code],
-//   );
+  const iResult = await db.query(
+    `DELETE from invoices WHERE id = $1
+        RETURNING id`,
+    [id],
+  );
 
-//   if (!result.rows[0]) {
-//     throw new NotFoundError();
-//   }
+  const invoice = iResult.rows[0];
+  if (!invoice) {
+    throw new NotFoundError();
+  }
 
-//   return res.json({ status: "deleted" });
-// });
+  return res.json({ status: "deleted" });
+});
 
 
 module.exports = router;
